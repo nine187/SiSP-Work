@@ -1,33 +1,7 @@
-##Script name:function.R
-##
-##Purpose of script:a script containing different functions to run the CRC web application website
-## the data input requires a gene expression dataset (RNA-seq dataset) (change later)
-##Author: Pasith Prayoonrat
-##
-##Date Created: 25-1-2024
-##
-##Email: pasith.p@gmail.com
-
-# Call org.Hs.eg.db library from Bioconductor package
-library(org.Hs.eg.db)
-# Call the libraries for DeepCC
-library(reticulate)
-use_condaenv("r-reticulate")
-library(tensorflow)
-library(keras)
-library(DeepCC)
-library(CRISclassifier)
-library(Biobase)
-library("AnnotationDbi")
-
-
-# Load the trained DeepCC model for CMS classification
-#prefix <- "~/R_Sisyspharm/CMS/DeepCC/DeepCC_TCGA_scale-estimate_model/DeepCC_CRC_TCGA-scale-estimate-456sam-600epoch-relu_model"
-prefix <- "data/CRC_TCGA"
-classifier <- load_DeepCC_model(prefix)
-
-# Load the selected feature data set used for CRIS classification
-data("features")
+library(shiny)
+library(shinydashboard)
+#library(gridExtra) #arrange RShiny output #ask P'Arm about this
+library(networkD3) #data visualization https://stackoverflow.com/questions/48024037/printing-a-sankey-diagram-in-shiny
 
 ## CMS CLASSIFICATION ##
 CMSprediction <- function(GEPdata, classifier){
@@ -35,46 +9,38 @@ CMSprediction <- function(GEPdata, classifier){
   # Call the gene expression data
   #GEPdata <- GEPdataInput()
   # Define the row names of the gene expression data
-  rownames(GEPdata) <- GEPdata[, 1]
+  #rownames(GEPdata) <- GEPdata[, 1]
   # Remove the first column of the 
   GEPdata <- GEPdata[, -1]
+  # Log2-transformation of gene expression data before performing functional spectra
+  # Transpose the gene expression data set before performing functional spectra
+  GEPdata <- as.data.frame(t(log2(GEPdata + 1)))
   
-  #convert to entrez
   # The column names of a gene expression data should be Entrez ID of genes
   # Get column names of gene expression data and map symbol to entrez id
-  GeneENT  <- mapIds(org.Hs.eg.db, rownames(GEPdata) , 
-                     'ENTREZID', 'SYMBOL')
+  GeneENT  <- as.data.frame(mapIds(org.Hs.eg.db, 
+                                   colnames(GEPdata) , 
+                                   'ENTREZID', 'SYMBOL'))
   
   # After converting symbol to entrez id, there are NA samples in the data
   # This loop for finding NA positions of entrez id data
-  GeneENTnapos <- which(is.na(GeneENT))
+  GeneENTnapos <- which(is.na(GeneENT[, 1]))
   # Remove NA positions from gene expression data (some columns will be removed)
-  GEPdata <- GEPdata[-as.integer(GeneENTnapos),]
+  GEPdata <- GEPdata[, -as.integer(GeneENTnapos)]
   # Remove some genes containing NA in the Entrez ID genes
-  GeneENTnona <- as.data.frame(GeneENT[!is.na(GeneENT)])
+  GeneENTnona <- as.data.frame(GeneENT[-as.integer(GeneENTnapos), 1])
   # Change column names from symbol to entrez id
-  rownames(GEPdata) <- GeneENTnona$`GeneENT[!is.na(GeneENT)]`
+  colnames(GEPdata) <- GeneENTnona[, 1]
   
-  # Log2-transformation of gene expression data before performing functional spectra
-  # Transpose the gene expression data set before performing functional spectra
-  GEPdata <- GEPdata*(10^6)
-  GEPdata <- GEPdata + 1
-  GEPdata <- t(log2(GEPdata))
-  print("running functionalSpectra")
   # Classify new data set by utilizing the trained DeepCC model
   Freqspectra <- getFunctionalSpectra(GEPdata)
   print("fs")
   #prefix <- "~/R_Sisyspharm/Coding/Platform/DeepCC_CRC_TCGA-scale-estimate-456sam-600epoch-relu_model"
   #classifier <- load_DeepCC_model(prefix)
   Predlabel <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5)
-  Predlabel_prob <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5, 
-                                prob_mode = T, prob_raw = T)
-  Predlabel_prob <- as.data.frame(Predlabel_prob)
-  colnames(Predlabel_prob) <- c("CMS1", "CMS2","CMS3", "CMS4")
   print("pd")
   CMSpred <- as.data.frame(as.character(Predlabel), stringsAsFactors = FALSE)
   colnames(CMSpred) <- "CMS classification"
-  CMSpred <- cbind(CMSpred, Predlabel_prob)
   # Return the CMS prediction result
   return(CMSpred)
 }
@@ -144,14 +110,10 @@ CRISprediction <- function(GEPdata, GEPsamples){
   ProbeID <- GEPdata[,1]
   gene.names <- GEPdata[,1]
   num.samples <- (length(GEPdata[1,])-1)
-  exp.dataset <- GEPdata
+  exp.dataset <- GEPdata[-c(1)]
   #GEPsamples <- GEPdataInput()
   sample.names <- as.vector(colnames(GEPsamples)[-1])
   print(num.samples)
-  
-  #rownames
-  rownames(exp.dataset) <- exp.dataset[,1]
-  exp.dataset <- exp.dataset[,-1]
   
   # Row normalize
   normed.exp.dataset <- exp.dataset
@@ -363,14 +325,27 @@ CRISprediction <- function(GEPdata, GEPsamples){
 }
 
 
+# Define UI for app that draws a histogram ----'
+ui <- fluidPage(
+  #browser(),
+  titlePanel("CRC CMS Web Application Version 0.01"),
+  GEP_data_input <-  reactive({
+    require(input$GEP_file)
+    GEP_data <- read.csv(input$GEP_file$datapath, header = TRUE)
+    return(GEP_data)
+  })
+)
 
-############################RShiny function################################
-#load file in RShiny
-load_file <- function(name, path) {
-  ext <- tools::file_ext(name)
-  switch(ext,
-         csv = vroom::vroom(path, delim = ","),
-         tsv = vroom::vroom(path, delim = "\t"),
-         validate("Invalid file; Please upload a .csv or .tsv file")
-  )
+# Define server logic required to draw a histogram ----
+server <- function(input, output) {
+  #browser()
+  options(shiny.maxRequestSize=1000*1024^2) #set file size limit to 1GB
+  output$contents <- renderTable({
+    file <- input$file1
+    ext <- tools::file_ext(file$datapath)
+    req(file)
+    validate(need(ext == "csv", "Please upload a csv file"))
+    read.csv(file$datapath, header = input$header)
+  })
 }
+shinyApp(ui = ui, server = server)

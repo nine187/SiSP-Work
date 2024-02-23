@@ -104,3 +104,8 @@ Tutorial/CMS_combined/CRIS_combined/.Rproj.user/EBFAB939/viewer_history/viewhtml
 Tutorial/CMS_combined/CRIS_combined/.Rproj.user/shared/notebooks/paths
 *.xls
 Tutorial/DeepCC/results/DeepCC_cf
+*.tsv
+*.bkp
+*.hdf5
+*.gct
+Projects/CMS for CRC RShiny/data/TCGA_COAD_clinical

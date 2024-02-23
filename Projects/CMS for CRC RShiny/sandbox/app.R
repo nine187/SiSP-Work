@@ -1,13 +1,6 @@
-##Script name:function.R
-##
-##Purpose of script:a script containing different functions to run the CRC web application website
-## the data input requires a gene expression dataset (RNA-seq dataset) (change later)
-##Author: Pasith Prayoonrat
-##
-##Date Created: 25-1-2024
-##
-##Email: pasith.p@gmail.com
-
+# Call the involving library
+library(shiny)
+library(shinyjs)
 # Call org.Hs.eg.db library from Bioconductor package
 library(org.Hs.eg.db)
 # Call the libraries for DeepCC
@@ -17,9 +10,14 @@ library(tensorflow)
 library(keras)
 library(DeepCC)
 library(CRISclassifier)
-library(Biobase)
-library("AnnotationDbi")
+# Call the libraries for plotting
+library(ggplot2)
 
+# Call library for plotting the sankey network
+library(networkD3)
+
+# Modify the limitation of file size
+options(shiny.maxRequestSize = 30*1024^2)
 
 # Load the trained DeepCC model for CMS classification
 #prefix <- "~/R_Sisyspharm/CMS/DeepCC/DeepCC_TCGA_scale-estimate_model/DeepCC_CRC_TCGA-scale-estimate-456sam-600epoch-relu_model"
@@ -31,6 +29,7 @@ data("features")
 
 ## CMS CLASSIFICATION ##
 CMSprediction <- function(GEPdata, classifier){
+  browser()
   ## CMS classification utilizing DeepCC ##
   # Call the gene expression data
   #GEPdata <- GEPdataInput()
@@ -38,49 +37,41 @@ CMSprediction <- function(GEPdata, classifier){
   rownames(GEPdata) <- GEPdata[, 1]
   # Remove the first column of the 
   GEPdata <- GEPdata[, -1]
+  # Log2-transformation of gene expression data before performing functional spectra
+  # Transpose the gene expression data set before performing functional spectra
+  GEPdata <- t(log2(GEPdata + 1))
   
-  #convert to entrez
   # The column names of a gene expression data should be Entrez ID of genes
   # Get column names of gene expression data and map symbol to entrez id
-  GeneENT  <- mapIds(org.Hs.eg.db, rownames(GEPdata) , 
-                     'ENTREZID', 'SYMBOL')
+  #GeneENT  <- mapIds(org.Hs.eg.db, colnames(GEPdata) , 
+                                   #'ENTREZID', 'SYMBOL')
   
   # After converting symbol to entrez id, there are NA samples in the data
   # This loop for finding NA positions of entrez id data
-  GeneENTnapos <- which(is.na(GeneENT))
+  #GeneENTnapos <- which(is.na(GeneENT[, 1]))
   # Remove NA positions from gene expression data (some columns will be removed)
-  GEPdata <- GEPdata[-as.integer(GeneENTnapos),]
+  #GEPdata <- GEPdata[, -as.integer(GeneENTnapos)]
   # Remove some genes containing NA in the Entrez ID genes
-  GeneENTnona <- as.data.frame(GeneENT[!is.na(GeneENT)])
+  #GeneENTnona <- as.data.frame(GeneENT[-as.integer(GeneENTnapos), 1])
   # Change column names from symbol to entrez id
-  rownames(GEPdata) <- GeneENTnona$`GeneENT[!is.na(GeneENT)]`
+  #colnames(GEPdata) <- GeneENTnona[, 1]
   
-  # Log2-transformation of gene expression data before performing functional spectra
-  # Transpose the gene expression data set before performing functional spectra
-  GEPdata <- GEPdata*(10^6)
-  GEPdata <- GEPdata + 1
-  GEPdata <- t(log2(GEPdata))
-  print("running functionalSpectra")
   # Classify new data set by utilizing the trained DeepCC model
   Freqspectra <- getFunctionalSpectra(GEPdata)
   print("fs")
   #prefix <- "~/R_Sisyspharm/Coding/Platform/DeepCC_CRC_TCGA-scale-estimate-456sam-600epoch-relu_model"
   #classifier <- load_DeepCC_model(prefix)
   Predlabel <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5)
-  Predlabel_prob <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5, 
-                                prob_mode = T, prob_raw = T)
-  Predlabel_prob <- as.data.frame(Predlabel_prob)
-  colnames(Predlabel_prob) <- c("CMS1", "CMS2","CMS3", "CMS4")
   print("pd")
   CMSpred <- as.data.frame(as.character(Predlabel), stringsAsFactors = FALSE)
   colnames(CMSpred) <- "CMS classification"
-  CMSpred <- cbind(CMSpred, Predlabel_prob)
   # Return the CMS prediction result
   return(CMSpred)
 }
 
 ## CRIS CLASSIFICATION ##
 CRISprediction <- function(GEPdata, GEPsamples){
+  browser()
   # suppressWarnings()
   temp.nn.wt <- "TRUE"
   dist.selection <- "cosine"
@@ -362,15 +353,258 @@ CRISprediction <- function(GEPdata, GEPsamples){
   return(CRISpred)
 }
 
-
-
-############################RShiny function################################
-#load file in RShiny
-load_file <- function(name, path) {
-  ext <- tools::file_ext(name)
-  switch(ext,
-         csv = vroom::vroom(path, delim = ","),
-         tsv = vroom::vroom(path, delim = "\t"),
-         validate("Invalid file; Please upload a .csv or .tsv file")
-  )
+server <- function(input, output, session) {
+  # Get gene expression data set from user
+  GEPdataInput <- reactive({
+    # Require an external file from user
+    req(input$GEPfile)
+    # Check file extension --> csv or txt
+    if (length(grep("csv$", input$GEPfile)) > 0){
+      GEPdata <- read.csv(input$GEPfile$datapath,
+                          header = TRUE)
+    }
+    if (length(grep("txt$", input$GEPfile)) > 0){
+      GEPdata <- read.delim(input$GEPfile$datapath,
+                            header = TRUE)
+    }
+    return(GEPdata)
+  })
+  
+  # Get a value from the check box group as a function
+  ClasscheckInput <- reactive({
+    length(input$Classcheck)
+  })
+  # Observe the status of the check box group, and the uploaded input file and be disable/ able for the action button
+  observe({
+    if (ClasscheckInput() == 0 | is.null(input$GEPfile$datapath)){
+      disable("Classprediction")
+    }
+    if (ClasscheckInput() > 0 & !is.null(input$GEPfile$datapath)) {
+      enable("Classprediction")
+    }
+  })
+  
+  Subtypeprediction <- eventReactive(input$Classprediction, {
+    if (length(input$Classcheck) == 1) {
+      if (input$Classcheck == "CMS"){
+        Subtype <- CMSprediction(GEPdata = GEPdataInput(), 
+                                 classifier = classifier)
+      }else{
+        Subtype <- CRISprediction(GEPdata = GEPdataInput(), 
+                                  GEPsamples = GEPdataInput())
+      }
+    }
+    if (length(input$Classcheck) == 2) {
+      CMSsubtype <- CMSprediction(GEPdata = GEPdataInput(), 
+                                  classifier = classifier)
+      CRISsubtype <- CRISprediction(GEPdata = GEPdataInput(),
+                                    GEPsamples = GEPdataInput())
+      Subtype <- cbind(CMSsubtype, CRISsubtype, stringsAsFactors = FALSE)
+      print(class(Subtype[, 1]))
+      print(class(Subtype[, 2]))
+      print(class(Subtype[, 1][1]))
+    }
+    return(Subtype)
+  })
+  
+  # Plot pie chart for showing the proportion of classification labels
+  output$CMSpie <- renderPlot({
+    # Prepare data for plotting
+    Subtype <- Subtypeprediction()
+    Subtype <- Subtype$`CMS classification`
+    Subtype[is.na(Subtype)] <- "N/A"
+    Subtype <- data.frame(table(Subtype))
+    # Define color for plotting
+    CMScolors <- c("#FFA9A9", "#D7BEFF", "#9FE2BF", "#FFE493", "#bfc0c0")
+    if (length(input$Classcheck) == 1) {
+      if (input$Classcheck == "CMS"){
+        Piechart <- ggplot(data = Subtype, aes(x = 2, y = Freq, fill = Subtype)) +
+          geom_col(color = "white") +
+          coord_polar(theta = "y") +
+          geom_text(aes(label = Freq), position = position_stack(vjust = 0.5), 
+                    color = "black", fontface = "bold", size = 6) +
+          scale_fill_manual(values = CMScolors) +
+          guides(fill = guide_legend(title = "CMS class")) +
+          theme_void() +
+          xlim(0.5, 2.5) +
+          theme(legend.position = "right",
+                legend.title = element_text(face = "bold"))
+      }
+    }
+    if (length(input$Classcheck) == 2) {
+      Piechart <- ggplot(data = Subtype, aes(x = 2, y = Freq, fill = Subtype)) +
+        geom_col(color = "white") +
+        coord_polar(theta = "y") +
+        geom_text(aes(label = Freq), position = position_stack(vjust = 0.5), 
+                  color = "black", fontface = "bold", size = 6) +
+        scale_fill_manual(values = CMScolors) +
+        guides(fill = guide_legend(title = "CMS class")) +
+        theme_void() +
+        xlim(0.5, 2.5) +
+        theme(legend.position = "right",
+              legend.title = element_text(face = "bold"))
+    }
+    return(Piechart)
+  })
+  
+  # Plot pie chart for showing the proportion of classification labels
+  output$CRISpie <- renderPlot({
+    # Prepare data for plotting
+    Subtype <- Subtypeprediction()
+    Subtype <- Subtype$`CRIS classification`
+    Subtype[is.na(Subtype)] <- "N/A"
+    Subtype <- data.frame(table(Subtype))
+    # Define color for plotting
+    CRIScolors <- c("#D7263D", "#F46036", "#2E294E", "#1B998B", "#00B7E0", "#bfc0c0")
+    if (length(input$Classcheck) == 1) {
+      if (input$Classcheck == "CRIS"){
+        Piechart <- ggplot(data = Subtype, aes(x = 2, y = Freq, fill = Subtype)) +
+          geom_col(color = "white") +
+          coord_polar(theta = "y") +
+          geom_text(aes(label = Freq), position = position_stack(vjust = 0.5), 
+                    color = "white", fontface = "bold", size = 6) +
+          scale_fill_manual(values = CRIScolors) +
+          guides(fill = guide_legend(title = "CRIS class")) +
+          theme_void() +
+          xlim(0.5, 2.5) +
+          theme(legend.position = "right",
+                legend.title = element_text(face = "bold"))
+      }
+    }
+    if (length(input$Classcheck) == 2) {
+      Piechart <- ggplot(data = Subtype, aes(x = 2, y = Freq, fill = Subtype)) +
+        geom_col(color = "white") +
+        coord_polar(theta = "y") +
+        geom_text(aes(label = Freq), position = position_stack(vjust = 0.5), 
+                  color = "white", fontface = "bold", size = 6) +
+        scale_fill_manual(values = CRIScolors) +
+        guides(fill = guide_legend(title = "CRIS class")) +
+        theme_void() +
+        xlim(0.5, 2.5) +
+        theme(legend.position = "right",
+              legend.title = element_text(face = "bold"))
+    }
+    return(Piechart)
+  })
+  
+  output$CMSCRISsankey <- renderSankeyNetwork({
+    if (length(input$Classcheck) == 2) {
+      # Define node
+      Subtype <- Subtypeprediction()
+      CMSpred <- Subtype$`CMS classification`
+      CMSpred[is.na(CMSpred)] <- "N/A"
+      CMSnode <- data.frame(table(CMSpred))
+      colnames(CMSnode) <- c("Var1", "Freq")
+      print(CMSnode)
+      
+      CRISpred <- Subtype$`CRIS classification`
+      CRISpred[is.na(CRISpred)] <- "N/A"
+      CRISnode <- data.frame(table(CRISpred))
+      colnames(CRISnode) <- c("Var1", "Freq")
+      print(CRISnode)
+      
+      Node <- data.frame(rbind(CMSnode, CRISnode))
+      Node <- data.frame(as.character(Node$Var1))
+      colnames(Node) <- "name"
+      
+      # Define link
+      Link <- data.frame("source" = CMSpred, 
+                         "target" = CRISpred, 
+                         "value" = c(1:length(CMSpred)))
+      print(Link)
+      Sourcepos <- vector(mode = "integer")
+      for (i in 1:length(Link$source)) {
+        pos <- which(Link$source[i] == CMSnode$Var1) 
+        pos <- pos - 1
+        Sourcepos <- append(Sourcepos, pos)
+      }
+      print(Sourcepos)
+      Targetpos <- vector(mode = "integer")
+      for (i in 1:length(Link$target)) {
+        pos <- which(Link$target[i] == CRISnode$Var1) 
+        pos <- pos - 1 + length(CMSnode$Var1)
+        Targetpos <- append(Targetpos, pos)
+      }
+      print(Targetpos)
+      
+      Link$source <- Sourcepos
+      Link$target <- Targetpos
+      print("ok")
+      
+      # Combine data in a list
+      CRCsubtypes <- list("links" = Link, "nodes" = Node)
+      
+      # Add a factor column to list in the nodes 
+      Group <- as.factor(Node$name)
+      CRCsubtypes$nodes$group <-  Group
+      print(CRCsubtypes)
+      
+      node_color <- 'd3.scaleOrdinal() .domain(["CMS1", "CMS2", "CMS3", "CMS4", "CRIS-A", "CRIS-B", "CRIS-C", "CRIS-D", "CRIS-E", "N/A"]) .range(["#FFA9A9", "#D7BEFF", "#9FE2BF", "#FFE493", "#D7263D", "#F46036", "#2E294E", "#1B998B", "#00B7E0", "#bfc0c0"])'
+      # Plot
+      sankeyNetwork(Links = CRCsubtypes$links, Nodes = CRCsubtypes$nodes, 
+                    Source = 'source', Target = 'target', Value = 'value', 
+                    NodeID = 'name', units = 'TWh', fontSize = 12, 
+                    nodeWidth = 30, iterations = 0, colourScale = node_color,
+                    NodeGroup = "group")
+    }
+  })      
+  
+  
+  
+  # Show the content of prediction as a table
+  output$Content <- renderTable({
+    GEP <- GEPdataInput()
+    GEP <- GEP[, -1]
+    Subtype <- Subtypeprediction()
+    Predictionresult <- cbind("Sample ID" = colnames(GEP),
+                              Subtype)
+    return(Predictionresult)
+  })
+  
 }
+
+# Construct UI
+ui <- fluidPage(
+  shinyjs::useShinyjs(),
+  titlePanel("SiSP LAB"),
+  # Divide columns of the UI page
+  fluidRow(
+    column(width = 2, 
+           # Input: Select a file ----
+           fileInput(inputId = "GEPfile", 
+                     label = "Choose Gene Expression File (.CSV/ .TXT file)",
+                     multiple = FALSE,
+                     accept = c("text/csv",
+                                "text/comma-separated-values,text/plain",
+                                ".csv")),
+           # Horizontal line ----
+           tags$hr(),
+           # Input: Checkbox group if file has header ----
+           checkboxGroupInput(inputId = "Classcheck",
+                              label = "Colorectal Cancer Subgruop Classification(s)",
+                              selected = "CMS",
+                              choices = list("CMS", "CRIS")),
+           # Horizontal line ----
+           tags$hr(),
+           # Construct an action button for prediction
+           actionButton(inputId = "Classprediction", 
+                        label = "Predict"),
+           p("Press the 'Predict' button after the classification(s) is chosen.")
+    ),
+    column(width = 10,
+           fluidRow(
+             column(width = 5, 
+                    plotOutput(outputId = "CMSpie")), 
+             column(width = 5, 
+                    plotOutput(outputId = "CRISpie")),
+             fluidRow(
+               column(width = 10,
+                      sankeyNetworkOutput(outputId = "CMSCRISsankey"),
+                      tableOutput(outputId = "Content"))
+             )
+           )
+    )
+  )
+)
+
+shinyApp(ui = ui, server = server)
