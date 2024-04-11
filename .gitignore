@@ -109,3 +109,8 @@ Tutorial/DeepCC/results/DeepCC_cf
 *.hdf5
 *.gct
 Projects/CMS for CRC RShiny/data/TCGA_COAD_clinical
+Projects/CMS for CRC RShiny/code/.Rhistory
+Projects/CMS for CRC RShiny/code/__pycache__/indra.cpython-311.pyc
+*.pyc
+*.xml
+Projects/CMS for CRC RShiny/code/Subtypes_database-Copy1.ipynb

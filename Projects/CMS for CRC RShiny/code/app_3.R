@@ -19,13 +19,14 @@ library(networkD3)
 
 #survival analysis curve
 library(survival)
-
 library(shiny)
 library(ggplot2)
 library(ggsurvfit)
 library(lubridate)
+library(dplyr)
+library(survminer)
 
-source("code/function.R")
+source("code/function_1.R")
 
 # Modify the limitation of file size
 options(shiny.maxRequestSize = 1000*1024^2)
@@ -235,6 +236,7 @@ server <- function(input, output, session) {
     Subtype <- Subtypeprediction()
     Predictionresult <- cbind("Sample ID" = colnames(GEP),
                               Subtype)
+    #Add CRIS prediction probability
     return(Predictionresult)
   })
   
@@ -257,10 +259,10 @@ server <- function(input, output, session) {
     data <- read.csv(input$cohort_file$datapath)
     
     # Assuming your data has 'time' and 'status' columns
-    fit <- survfit(Surv(time, status) ~ 1, data = data)
+    fit <- survfit(Surv(overall_survival, deceased) ~ 1, data = data)
     
     # Plotting survival curve
-    ggsurvfit::survfit2(Surv(time,status) ~ 1, data = data)%>% 
+    ggsurvfit::survfit2(Surv(overall_survival, deceased) ~ 1, data = data)%>% 
       ggsurvfit() +
       labs(
         x = "Days",
@@ -272,18 +274,63 @@ server <- function(input, output, session) {
   output$loc_plot <- renderPlot({
     req(input$cohort_file)
     data <- read.csv(input$cohort_file$datapath)
-    loc <- as.data.frame(table(data$location))
+    loc <- as.data.frame(table(data$site_of_resection_or_biopsy))
     ggplot(loc, aes(x = Var1, y = Freq)) +
       geom_bar(stat = "identity", fill = "blue") +  # Basic bar graph
       labs(title = "Bar Graph", x = "Category", y = "Value") +  # Add title and axis labels
-      theme_minimal()  # Optional: set a minimal theme
+      theme_minimal()  })  # Optional: set a minimal theme
+  
+  output$loc_plot_CMS <- renderPlot({
+    req(input$cohort_file)
+    cohort_data <- read.csv(input$cohort_file$datapath)
+    
+    #clean the dataset for 
+    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Sigmoid colon","Ascending colon", "Descending colon", "Splenic flexure of colon", "Rectosigmoid junction","Rectum, NOS")] <- "left"
+    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Cecum","Hepatic flexure of colon")] <- "right"
+    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Colon, NOS", "Transverse colon" ,"Unknown primary site", "Connective, subcutaneous and other soft tissues of abdomen", "NA ")] <- NA
+    
+    # Group by Location and Category, then summarize to calculate the frequency
+    frequency_df <- cohort_data %>%
+      group_by(site_of_resection_or_biopsy, CMS_final_network_plus_RFclassifier_in_nonconsensus_samples) %>%
+      summarise(Frequency = n())
+    
+    ggplot(frequency_df, aes(CMS_final_network_plus_RFclassifier_in_nonconsensus_samples, Frequency, fill = site_of_resection_or_biopsy))+
+      geom_col()
+  })
+  
+  output$surv_plot_CMS <- renderPlot({
+    req(input$cohort_file)
+    cohort_data <- read.csv(input$cohort_file$datapath)
+    split_data <- split(cohort_data, cohort_data$CMS_final_network_plus_RFclassifier_in_nonconsensus_samples)
+    
+    # Assign each element of the list to a separate dataframe
+    CMS1_df <- split_data[["CMS1"]]
+    CMS2_df <- split_data[["CMS2"]]
+    CMS3_df <- split_data[["CMS3"]]
+    CMS4_df <- split_data[["CMS4"]]
+    NOLBL_df <- split_data[["NOLBL"]]
+    
+    # Fit survival curves for each category
+    surv_cms1 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS1_df)
+    surv_cms2 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS2_df)
+    surv_cms3 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS3_df)
+    surv_cms4 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS4_df)
+    
+    # Combine survival objects into a list
+    surv_list <- list(CMS1 = surv_cms1, CMS2 = surv_cms2, CMS3 = surv_cms3, CMS4 = surv_cms4)
+    
+    ggsurvplot_combine(surv_list, data = cohort_data, risk.table = TRUE, pval = TRUE,
+                       xlab = "Days", ylab = "Overall survival probability",
+                       legend.title = "Location", legend.labs = c("CMS1", "CMS2", "CMS3", "CMS4")) +
+      labs(title = "Overall Survival Probability by Location")
+    
   })
 }
 
 # Construct UI
 ui <- fluidPage(
   shinyjs::useShinyjs(),
-  titlePanel("SiSP LAB"),
+  titlePanel("SiSP LAB: V 0.02"),
   # Divide columns of the UI page
   fluidRow(
     column(width = 12, 
@@ -306,7 +353,9 @@ ui <- fluidPage(
            # Construct an action button for prediction
            actionButton(inputId = "Classprediction", 
                         label = "Predict CMS"),
-           p("Press the 'Predict' button after the classification(s) is chosen."),
+           p("Press the 'Predict' button after the classification(s) is chosen. \n
+             The input file must be a .csv file. \n
+             The column must be patient ID and row must be Gene Symbol."),
            fileInput(inputId = "cohort_file", 
                      label = "Choose cohort file (.CSV/ .TXT file)",
                      multiple = FALSE,
@@ -315,7 +364,9 @@ ui <- fluidPage(
                                 ".csv")),
            actionButton(inputId = "Cohort_vis",
                         label = "Visualization"),
-           p("Press the button to visualize the cohort data")
+           p("Press the button to visualize the cohort data.
+             The input file must be a .csv file
+             The column must be patient ID, days, status, and location.")
     ),
     column(width = 10,
            fluidRow(
@@ -326,14 +377,16 @@ ui <- fluidPage(
              fluidRow(
                column(width = 10,
                       sankeyNetworkOutput(outputId = "CMSCRISsankey"),
-                      tableOutput(outputId = "Content")),
-               plotOutput(outputId = "surv_plot"),
-               plotOutput(outputId = "loc_plot")
-               #plotOutput(outputId = "CMS_prob")
+                      tableOutput(outputId = "Content"),
+                      plotOutput(outputId = "loc_plot"),
+                      plotOutput(outputId = "surv_plot"),
+                      plotOutput(outputId = "loc_plot_CMS"),
+                      plotOutput(outputId = "surv_plot_CMS")
+                      #plotOutput(outputId = "CMS_prob")
+               )
              )
            )
     )
-  )
-)
+  ))
 
 shinyApp(ui = ui, server = server)
