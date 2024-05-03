@@ -359,10 +359,10 @@ CRISprediction <- function(GEPdata, GEPsamples){
   CRISpred <- as.data.frame(predict.label2, stringsAsFactors = FALSE)
   
   #bind the dist.to.cls1 probabilty to the table
-  CRISpred[,2] <- dist.to.cls1
+  CRISpred[,2] <- dist.to.template
   
   #assign the column name to the dataframe
-  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to cluster")
+  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to template")
   
   # Return the CRIS prediction result
   return(CRISpred)

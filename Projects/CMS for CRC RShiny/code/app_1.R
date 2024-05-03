@@ -26,6 +26,9 @@ library(lubridate)
 library(dplyr)
 library(survminer)
 
+#visNetwork 
+library(visNetwork)
+
 source("code/function_1.R")
 
 # Modify the limitation of file size
@@ -61,6 +64,25 @@ server <- function(input, output, session) {
       enable("Classprediction")
     }
   })
+  
+  #CMS Summary Table
+  CMS_Summary <- reactive({
+    read.csv("data/CMS Summary Table.csv")
+  })
+  
+  output$CMS_Summary <- renderTable({
+    return((CMS_Summary()))
+  })
+  
+  #CRIS Summary Table
+  CRIS_Summary <- reactive({
+    read.csv("data/CRIS Summary.csv")
+  })
+  
+  output$CRIS_Summary <- renderTable({
+    return((CRIS_Summary()))
+  })
+  
   
   Subtypeprediction <- eventReactive(input$Classprediction, {
     if (length(input$Classcheck) == 1) {
@@ -324,21 +346,117 @@ server <- function(input, output, session) {
                        legend.title = "Location", legend.labs = c("CMS1", "CMS2", "CMS3", "CMS4")) +
       labs(title = "Overall Survival Probability by Location")
   })
-    
+  output$networkCMS_output <- renderVisNetwork({
+    if(input$networkCMS == "netCMS1_pred") {
+      nodes <- data.frame(id = 1:3,
+                          label = paste(c("CMS1 predictive", 
+                                          "HSP90 inhibition", 
+                                          "Anti-PD1 therapy with significantly longer PFS")),
+                          group = c("GrA", "GrB", "GrC"),
+                          value = 1:3,
+                          shape = c("circle", "square", "square"),
+                          title = paste0("<p><b>", 1:3,"</b><br>Node !</p>"),
+                          shadow = c(TRUE, TRUE, FALSE))
+      
+      edges <- data.frame(from = c(1,1), to = c(2,3),
+                          label = c("predict response"),
+                          length = c(500, 500)
+      )
+      
+      visNetwork(nodes, edges, 
+                 main = "CMS1", 
+                 submain = list(text = "Predictive Biomarker",
+                                style = "font-family:Comic Sans MS;color:#ff0000;font-size:15px;text-align:center;"), 
+                 footer = "Fig.1 Example", 
+                 height = "500px",
+                 width = "100%")
+    }
+    else {
+      treCMS1nodes <- data.frame(id = 1:5,
+                                 
+                                 #add labels on node
+                                 label = paste(c("CMS1 treatment", 
+                                                 "Pembrolizumab", 
+                                                 "Bevacizumab",
+                                                 "oxaliplatin + bevacizumab",
+                                                 "fluorouracil")),
+                                 
+                                 #add groups on nodes,
+                                 group = c("PMIDA", "PMIDB", "PMIDC","PMIDD","PMIDE"),
+                                 
+                                 #control shape of nodes
+                                 shape = c("circle", "square", "square", "square", "square"),
+                                 
+                                 # tooltip (html or character), when the mouse is above
+                                 title = paste0("<p><b>", 1:5,"</b><br>Node !</p>")
+                                 
+      )
+      treCMS1edges <- data.frame(from = c(1,1,1,1), to = c(2,3,4,5),
+                                 #add labels to the edge
+                                 label = c("benefit treatment", "benefit treatment", 
+                                           "first line", "doesn't benefit"),
+                                 length = c(500,500,500,500)
+      )
+      visNetwork(treCMS1nodes, treCMS1edges, 
+                 main = "CMS1", 
+                 submain = list(text = "Treatment",
+                                style = "font-family:Comic Sans MS;color:#ff0000;font-size:15px;text-align:center;"), 
+                 footer = "Fig.1 Example", 
+                 height = "500px",
+                 width = "100%")
+    }
+  })
     # Read CSV file
-    CMS_pred <- reactive({
-      read.csv("data/CMS_pred_df.csv")
+    CMS1_pred <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS1 - Predictive.csv")
     })
-    CMS_prog <- reactive({
-      read.csv("data/CMS_prog_df.csv")
+    CMS2_pred <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS2 - Predictive.csv")
     })
-    
+    CMS3_pred <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS3- Predictive.csv")
+    })
+    CMS4_pred <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS4 - Predictive.csv")
+    })
+    CMS1_prog <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS1 - Prognostic .csv")
+    })
+    CMS2_prog <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS2 - Prognostic.csv")
+    })
+    CMS3_prog <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS3 - Prognostic.csv")
+    })
+    CMS4_prog <- reactive({
+      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS4 - Prognostic.csv")
+    })
     output$table_CMS <- renderTable({
-    if(input$CMS_df == "CMS_pred"){
-      return(CMS_pred())
-    } else {
-      return(CMS_prog())
-    }})
+    if(input$CMS_df == "CMS1_pred"){
+      return(CMS1_pred())
+    } 
+    if(input$CMS_df == "CMS2_pred"){
+      return(CMS2_pred())
+    }
+    if(input$CMS_df == "CMS3_pred"){
+      return(CMS3_pred())
+    }
+    if(input$CMS_df == "CMS4_pred"){
+      return(CMS4_pred())
+    }
+    if(input$CMS_df == "CMS1_prog"){
+      return(CMS1_prog())
+    }
+    if(input$CMS_df == "CMS2_prog"){
+      return(CMS2_prog())
+    }
+    if(input$CMS_df == "CMS3_prog"){
+      return(CMS3_prog())
+    }
+    else{
+      return(CMS4_prog())
+    }}
+    )
 }
 
 TPM_options <- c("TPM", "no TPM")
@@ -346,15 +464,11 @@ TPM_options <- c("TPM", "no TPM")
 # Construct UI
 ui <- fluidPage(
   shinyjs::useShinyjs(),
-  titlePanel("SiSP LAB: V 0.05"),
+  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.10", align = "center"),
+             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.10"),
   # Divide columns of the UI page
-  fluidRow(
-    selectInput(inputId = "CMS_df",
-                label = "Subtypes:",
-                choices =  c("CMS predictive" = "CMS_pred",
-                  "CMS prognostic " = "CMS_prog")),
-           tableOutput("table_CMS"),
-           column(width = 12, 
+  fluidPage(
+    column(width = 12, 
            # Input: Select a file ----
            fileInput(inputId = "GEPfile", 
                      label = "Choose Gene Expression File (.CSV/ .TXT file)",
@@ -374,7 +488,7 @@ ui <- fluidPage(
            radioButtons("TPM", "TPM option", TPM_options),
            # Construct an action button for prediction
            actionButton(inputId = "Classprediction", 
-                        label = "Predict CMS"),
+                        label = "Button"),
            p("Press the 'Predict' button after the classification(s) is chosen. \n
              The input file must be a .csv file. \n
              The column must be patient ID and row must be Gene Symbol."),
@@ -387,27 +501,57 @@ ui <- fluidPage(
                                 "text/comma-separated-values,text/plain",
                                 ".csv")),
            #actionButton(inputId = "Cohort_vis",
-                        #label = "Visualization"),
+           #label = "Visualization"),
            #remove the visualization buttion
            #p("Press the button to visualize the cohort data.
-             #The input file must be a .csv file
-             #The column must be patient ID, days, status, and location.")
+           #The input file must be a .csv file
+           #The column must be patient ID, days, status, and location.")
     ),
+    ########################################
+    p("SECTION 1: Tumor Identity"),
+    
+    ########################################
+    p("SECTION 2: Subtype Classification"),
+    tableOutput("CMS_Summary"),
+    tableOutput("CRIS_Summary"),
     column(width = 10,
            fluidRow(
              column(width = 5, 
                     plotOutput(outputId = "CMSpie")), 
              column(width = 5, 
                     plotOutput(outputId = "CRISpie")),
-             fluidRow(
+            fluidRow(
                column(width = 10,
                       sankeyNetworkOutput(outputId = "CMSCRISsankey"),
-                      tableOutput(outputId = "Content"),
+                      
+    #cohort data visualization
+            tableOutput(outputId = "Content"),
                       plotOutput(outputId = "loc_plot"),
                       plotOutput(outputId = "surv_plot"),
                       plotOutput(outputId = "loc_plot_CMS"),
                       plotOutput(outputId = "surv_plot_CMS"),
                       #plotOutput(outputId = "CMS_prob")
+    #CMS Summary Table
+    p("SECTION 3: Clinical Linke (Prognostic + Predictive Biomarker"),
+    selectInput(inputId = "networkCMS",
+                label = "CMS Network:",
+                choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
+                            "CMS1-Treatment" = "netCMS2_pred"),
+                selected = "netCMS1_pred"),
+    visNetworkOutput("networkCMS_output"),
+    #####################################
+    #button for dataframe choices
+    selectInput(inputId = "CMS_df",
+                label = "Subtypes:",
+                choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
+                  "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
+                  "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
+                  "CMS4 predictive biomarker+ Treatment" = "CMS4_pred",
+                  "CMS1 prognostic biomarker" = "CMS1_prog",
+                  "CMS2 prognostic biomarker" = "CMS2_prog",
+                  "CMS3 prognostic biomarker" = "CMS3_prog",
+                  "CMS4 prognostic biomarker" = "CMS4_prog")),
+    tableOutput("table_CMS"),
                )
              )
            )

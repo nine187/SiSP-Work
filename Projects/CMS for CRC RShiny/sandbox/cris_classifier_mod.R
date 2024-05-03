@@ -4,6 +4,7 @@ input.exp.filename,
 output.name="CRIS"
 )
 {
+  browser()
   # resampling to generate null dist
   nresmpl <- 1000
   # Seed
@@ -516,4 +517,4 @@ output.name="CRIS"
 
 
 }  # END main
-
+      
