@@ -250,8 +250,6 @@ server <- function(input, output, session) {
     }
   })      
   
-  
-  
   # Show the content of prediction as a table
   output$Content <- renderTable({
     GEP <- GEPdataInput()
@@ -559,4 +557,3 @@ ui <- fluidPage(
   ))
 
 shinyApp(ui = ui, server = server)
-

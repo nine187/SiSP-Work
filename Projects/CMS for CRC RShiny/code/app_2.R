@@ -65,6 +65,25 @@ server <- function(input, output, session) {
     }
   })
   
+  #CMS Summary Table
+  CMS_Summary <- reactive({
+    read.csv("data/CMS Summary Table.csv")
+  })
+  
+  output$CMS_Summary <- renderTable({
+    return((CMS_Summary()))
+  })
+  
+  #CRIS Summary Table
+  CRIS_Summary <- reactive({
+    read.csv("data/CRIS Summary.csv")
+  })
+  
+  output$CRIS_Summary <- renderTable({
+    return((CRIS_Summary()))
+  })
+  
+  
   Subtypeprediction <- eventReactive(input$Classprediction, {
     if (length(input$Classcheck) == 1) {
       if (input$Classcheck == "CMS"){
@@ -230,8 +249,6 @@ server <- function(input, output, session) {
                     NodeGroup = "group")
     }
   })      
-  
-  
   
   # Show the content of prediction as a table
   output$Content <- renderTable({
@@ -445,8 +462,8 @@ TPM_options <- c("TPM", "no TPM")
 # Construct UI
 ui <- fluidPage(
   shinyjs::useShinyjs(),
-  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.08", align = "center"),
-             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.08"),
+  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.10", align = "center"),
+             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.10"),
   # Divide columns of the UI page
   fluidPage(
     column(width = 12, 
@@ -488,27 +505,13 @@ ui <- fluidPage(
            #The input file must be a .csv file
            #The column must be patient ID, days, status, and location.")
     ),
-    #button for CMS network
-    selectInput(inputId = "networkCMS",
-                label = "CMS Network:",
-                choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
-                            "CMS1-Treatment" = "netCMS2_pred"),
-                selected = "netCMS1_pred"),
-    visNetworkOutput("networkCMS_output"),
+    ########################################
+    p("SECTION 1: Tumor Identity"),
     
-    #button for dataframe choices
-    selectInput(inputId = "CMS_df",
-                label = "Subtypes:",
-                choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
-                             "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
-                             "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
-                             "CMS4 predictive biomarker+ Treatment" = "CMS4_pred",
-                             "CMS1 prognostic biomarker" = "CMS1_prog",
-                             "CMS2 prognostic biomarker" = "CMS2_prog",
-                             "CMS3 prognostic biomarker" = "CMS3_prog",
-                             "CMS4 prognostic biomarker" = "CMS4_prog")),
-    tableOutput("table_CMS"),
-    
+    ########################################
+    p("SECTION 2: Subtype Classification"),
+    tableOutput("CMS_Summary"),
+    tableOutput("CRIS_Summary"),
     column(width = 10,
            fluidRow(
              column(width = 5, 
@@ -518,13 +521,35 @@ ui <- fluidPage(
              fluidRow(
                column(width = 10,
                       sankeyNetworkOutput(outputId = "CMSCRISsankey"),
+                      
+                      #cohort data visualization
                       tableOutput(outputId = "Content"),
                       plotOutput(outputId = "loc_plot"),
                       plotOutput(outputId = "surv_plot"),
                       plotOutput(outputId = "loc_plot_CMS"),
                       plotOutput(outputId = "surv_plot_CMS"),
                       #plotOutput(outputId = "CMS_prob")
-                      
+                      #CMS Summary Table
+                      p("SECTION 3: Clinical Linke (Prognostic + Predictive Biomarker"),
+                      selectInput(inputId = "networkCMS",
+                                  label = "CMS Network:",
+                                  choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
+                                              "CMS1-Treatment" = "netCMS2_pred"),
+                                  selected = "netCMS1_pred"),
+                      visNetworkOutput("networkCMS_output"),
+                      #####################################
+                      #button for dataframe choices
+                      selectInput(inputId = "CMS_df",
+                                  label = "Subtypes:",
+                                  choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
+                                               "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
+                                               "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
+                                               "CMS4 predictive biomarker+ Treatment" = "CMS4_pred",
+                                               "CMS1 prognostic biomarker" = "CMS1_prog",
+                                               "CMS2 prognostic biomarker" = "CMS2_prog",
+                                               "CMS3 prognostic biomarker" = "CMS3_prog",
+                                               "CMS4 prognostic biomarker" = "CMS4_prog")),
+                      tableOutput("table_CMS"),
                )
              )
            )
@@ -532,4 +557,3 @@ ui <- fluidPage(
   ))
 
 shinyApp(ui = ui, server = server)
-
