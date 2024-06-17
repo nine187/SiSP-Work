@@ -14,27 +14,117 @@ library(shinyjs)
 # Call the libraries for plotting
 library(ggplot2)
 
-# Call library for plotting the sankey network
+# Call library for plotting the sankey network and knowledge-based database
 library(networkD3)
 
 #survival analysis curve
 library(survival)
 library(shiny)
 library(ggplot2)
-library(ggsurvfit)
 library(lubridate)
 library(dplyr)
-library(survminer)
+
+#library(ggsurvfit)
+#library(survminer)
 
 #visNetwork 
 library(visNetwork)
 
+#SECTION1 table
+library(gtsummary)
+
+#for umap
+library(umap)
+
+#json 
+library(jsonlite)
+
 source("code/function_1.R")
 
-# Modify the limitation of file size
+# Modify the limitation of size
 options(shiny.maxRequestSize = 1000*1024^2)
 
 server <- function(input, output, session) {
+  ############# UMAP code ###########################
+  cms.col <- c("#FFA9A9", "#D7BEFF", "#9FE2BF", "#FFE493")
+  #load the csv file
+  tcga.feature <- reactive({
+    read.csv("data/umap_TCGA.csv")
+  })
+  
+  si.feature <- reactive({
+    read.csv("data/umap_Si.csv")
+  })
+  
+  CMS_bel <- reactive({
+    read.delim("code/pybel.tsv", header = FALSE)
+  })
+  
+  #load the config
+  custom.config <- umap.defaults
+  custom.config$min_dist <- 0.4
+  custom.config$n_neighbors <- 30
+  
+  #umap plot for tcga
+  output$umap_TCGA <- renderPlot({
+    tcga.ref_umap.dat <- tcga.feature()
+    ggplot(tcga.ref_umap.dat, aes(x = umap1, y = umap2)) +
+      geom_point() +
+      labs(title = "TCGA_UMAP: Dimension 1 vs Dimension 2")+
+      stat_ellipse(data = tcga.ref_umap.dat, 
+                   aes(x = umap1, y = umap2, color = cms.lab), 
+                   type = "norm", linetype = 2, level = 0.95)+
+      geom_point(data = tcga.ref_umap.dat, 
+                 aes(x = umap1, y = umap2, color = cms.lab), 
+                 size = 3, alpha = 0.85, shape = 16)+
+      scale_color_manual(values = cms.col)+
+      theme(legend.position = c(0.05, 0.05),
+            legend.justification = c(0.05, 0.05), 
+            legend.text = element_text(size = 14),
+            legend.title = element_text(face = "bold", size = 14), 
+            text = element_text(family = "Arial"),
+            axis.title.x = element_text(face = "bold", size = 16), 
+            axis.title.y = element_text(face = "bold", size = 16), 
+            axis.line = element_line(size = 1), 
+            axis.text.x = element_text(size = 14, vjust = 0.5), 
+            axis.text.y = element_text(size = 14),
+            strip.text.x = element_text(size = 14, face = "bold"),
+            panel.background = element_rect(color = "white", fill = "white"), 
+            strip.background = element_rect(color = "white", fill = "white"),
+            panel.grid.major = element_line(color = "gray", linewidth = 0.25), 
+            panel.grid.minor = element_line(color = "gray87", linewidth = 0.12))})
+  
+  
+  #umap plot for si
+  output$umap_si <- renderPlot({
+    si.ref_umap.dat <- si.feature()
+    ggplot(si.ref_umap.dat, aes(x = umap1, y = umap2)) +
+      geom_point() +
+      labs(title = "Si_UMAP: Dimension 1 vs Dimension 2")+
+      stat_ellipse(data = si.ref_umap.dat, 
+                   aes(x = umap1, y = umap2, color = cms.lab), 
+                   type = "norm", linetype = 2, level = 0.95)+
+      geom_point(data = si.ref_umap.dat, 
+                 aes(x = umap1, y = umap2, color = cms.lab), 
+                 size = 3, alpha = 0.85, shape = 16)+
+      scale_color_manual(values = cms.col)+
+      theme(legend.position = c(0.05, 0.05),
+            legend.justification = c(0.05, 0.05), 
+            legend.text = element_text(size = 14),
+            legend.title = element_text(face = "bold", size = 14), 
+            text = element_text(family = "Arial"),
+            axis.title.x = element_text(face = "bold", size = 16), 
+            axis.title.y = element_text(face = "bold", size = 16), 
+            axis.line = element_line(size = 1), 
+            axis.text.x = element_text(size = 14, vjust = 0.5), 
+            axis.text.y = element_text(size = 14),
+            strip.text.x = element_text(size = 14, face = "bold"),
+            panel.background = element_rect(color = "white", fill = "white"), 
+            strip.background = element_rect(color = "white", fill = "white"),
+            panel.grid.major = element_line(color = "gray", linewidth = 0.25), 
+            panel.grid.minor = element_line(color = "gray87", linewidth = 0.12))})
+  
+  ##### Data Input ###########
   # Get gene expression data set from user
   GEPdataInput <- reactive({
     # Require an external file from user
@@ -83,7 +173,7 @@ server <- function(input, output, session) {
     return((CRIS_Summary()))
   })
   
-  
+  #Apply the CMS prediction function to the inputted data
   Subtypeprediction <- eventReactive(input$Classprediction, {
     if (length(input$Classcheck) == 1) {
       if (input$Classcheck == "CMS"){
@@ -249,7 +339,7 @@ server <- function(input, output, session) {
                     NodeGroup = "group")
     }
   })      
-  
+    
   # Show the content of prediction as a table
   output$Content <- renderTable({
     GEP <- GEPdataInput()
@@ -257,7 +347,6 @@ server <- function(input, output, session) {
     Subtype <- Subtypeprediction()
     Predictionresult <- cbind("Sample ID" = colnames(GEP),
                               Subtype)
-    #Add CRIS prediction probability
     return(Predictionresult)
   })
   
@@ -271,79 +360,53 @@ server <- function(input, output, session) {
   #return(prob_2)
   #})
   
-  #cohort visualization
-  cohort_vis <- ezfun::set_ccf_palette("contrast")
-  
-  output$surv_plot <- renderPlot({
-    req(input$cohort_file)
-    
-    data <- read.csv(input$cohort_file$datapath)
-    
-    # Assuming your data has 'time' and 'status' columns
-    fit <- survfit(Surv(overall_survival, deceased) ~ 1, data = data)
-    
-    # Plotting survival curve
-    ggsurvfit::survfit2(Surv(overall_survival, deceased) ~ 1, data = data)%>% 
-      ggsurvfit() +
-      labs(
-        x = "Days",
-        y = "Overall survival probability")
-  })
-  
-  #Plotting the piechart for CRC location
-  output$loc_plot <- renderPlot({
-    req(input$cohort_file)
-    data <- read.csv(input$cohort_file$datapath)
-    loc <- as.data.frame(table(data$site_of_resection_or_biopsy))
-    ggplot(loc, aes(x = Var1, y = Freq)) +
-      geom_bar(stat = "identity", fill = "blue") +  # Basic bar graph
-      labs(title = "Bar Graph", x = "Category", y = "Value") +  # Add title and axis labels
-      theme_minimal()  })  # Optional: set a minimal theme
-  
-  output$loc_plot_CMS <- renderPlot({
+  #function to read the input file
+  clinical_data <- reactive({
     req(input$cohort_file)
     cohort_data <- read.csv(input$cohort_file$datapath)
-    
-    #clean the dataset for 
-    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Sigmoid colon","Ascending colon", "Descending colon", "Splenic flexure of colon", "Rectosigmoid junction","Rectum, NOS")] <- "left"
-    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Cecum","Hepatic flexure of colon")] <- "right"
-    cohort_data$site_of_resection_or_biopsy[cohort_data$site_of_resection_or_biopsy %in% c("Colon, NOS", "Transverse colon" ,"Unknown primary site", "Connective, subcutaneous and other soft tissues of abdomen", "NA ")] <- NA
-    
-    # Group by Location and Category, then summarize to calculate the frequency
-    frequency_df <- cohort_data %>%
-      group_by(site_of_resection_or_biopsy, CMS_final_network_plus_RFclassifier_in_nonconsensus_samples) %>%
-      summarise(Frequency = n())
-    
-    ggplot(frequency_df, aes(CMS_final_network_plus_RFclassifier_in_nonconsensus_samples, Frequency, fill = site_of_resection_or_biopsy))+
-      geom_col()
+    return(cohort_data)
   })
   
-  output$surv_plot_CMS <- renderPlot({
-    req(input$cohort_file)
-    cohort_data <- read.csv(input$cohort_file$datapath)
-    split_data <- split(cohort_data, cohort_data$CMS_final_network_plus_RFclassifier_in_nonconsensus_samples)
-    
-    # Assign each element of the list to a separate dataframe
-    CMS1_df <- split_data[["CMS1"]]
-    CMS2_df <- split_data[["CMS2"]]
-    CMS3_df <- split_data[["CMS3"]]
-    CMS4_df <- split_data[["CMS4"]]
-    NOLBL_df <- split_data[["NOLBL"]]
-    
-    # Fit survival curves for each category
-    surv_cms1 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS1_df)
-    surv_cms2 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS2_df)
-    surv_cms3 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS3_df)
-    surv_cms4 <- survfit(Surv(overall_survival, deceased) ~ 1, data = CMS4_df)
-    
-    # Combine survival objects into a list
-    surv_list <- list(CMS1 = surv_cms1, CMS2 = surv_cms2, CMS3 = surv_cms3, CMS4 = surv_cms4)
-    
-    ggsurvplot_combine(surv_list, data = cohort_data, risk.table = TRUE, pval = TRUE,
-                       xlab = "Days", ylab = "Overall survival probability",
-                       legend.title = "Location", legend.labs = c("CMS1", "CMS2", "CMS3", "CMS4")) +
-      labs(title = "Overall Survival Probability by Location")
+  #bind the dataframe of Subtype prediction to clinical data
+  #figure out how to make the input wait for the subtype output
+  clinical_data <- reactive({
+    req(input$cohort_file, Subtypeprediction())
+    df <- read.csv(input$cohort_file$datapath, header = TRUE) # Assuming clinical data is loaded from a file
+    df2 <- Subtypeprediction()
+    #bind only the elements we wanted from the dataframe
+    combined <- cbind(df, df2)
+    #use gt summary to compute a table
+    combined_table <- tbl_summary(
+      combined,
+      include = c(sex, age, metastasis, stage, location),
+      by = "CMS classification",
+      missing = "no",
+    ) %>%
+      add_n() %>%
+      add_p() %>%
+      modify_header(label = "**Variable**") %>%
+      bold_labels()
+    return(combined_table)
   })
+  
+  #function to render the clinical data 
+  output$summary_table <- renderTable({
+    clinical_data()
+  })
+  
+  output$table_CMS <- renderTable({
+    CMS_bel()
+    }
+  )
+  
+  #json table, check this code later
+  json_data <- reactive({
+    fromJSON("code/pybel.indra.json")})
+  
+  output$json <-renderTable(
+    json_data()
+  )
+  
   output$networkCMS_output <- renderVisNetwork({
     if(input$networkCMS == "netCMS1_pred") {
       nodes <- data.frame(id = 1:3,
@@ -402,74 +465,20 @@ server <- function(input, output, session) {
                  footer = "Fig.1 Example", 
                  height = "500px",
                  width = "100%")
-    }
-  })
-    # Read CSV file
-    CMS1_pred <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS1 - Predictive.csv")
-    })
-    CMS2_pred <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS2 - Predictive.csv")
-    })
-    CMS3_pred <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS3- Predictive.csv")
-    })
-    CMS4_pred <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS4 - Predictive.csv")
-    })
-    CMS1_prog <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS1 - Prognostic .csv")
-    })
-    CMS2_prog <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS2 - Prognostic.csv")
-    })
-    CMS3_prog <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS3 - Prognostic.csv")
-    })
-    CMS4_prog <- reactive({
-      read.csv("data/CMS Knowledge based table summary (credit_ น้องนศพ) - CMS4 - Prognostic.csv")
-    })
-    output$table_CMS <- renderTable({
-    if(input$CMS_df == "CMS1_pred"){
-      return(CMS1_pred())
-    } 
-    if(input$CMS_df == "CMS2_pred"){
-      return(CMS2_pred())
-    }
-    if(input$CMS_df == "CMS3_pred"){
-      return(CMS3_pred())
-    }
-    if(input$CMS_df == "CMS4_pred"){
-      return(CMS4_pred())
-    }
-    if(input$CMS_df == "CMS1_prog"){
-      return(CMS1_prog())
-    }
-    if(input$CMS_df == "CMS2_prog"){
-      return(CMS2_prog())
-    }
-    if(input$CMS_df == "CMS3_prog"){
-      return(CMS3_prog())
-    }
-    else{
-      return(CMS4_prog())
-    }}
-    )
-}
-
-TPM_options <- c("TPM", "no TPM")
+  }})}
 
 # Construct UI
 ui <- fluidPage(
   shinyjs::useShinyjs(),
-  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.10", align = "center"),
-             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.10"),
+  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.16", align = "center"),
+             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.16"),
   # Divide columns of the UI page
   fluidPage(
     column(width = 12, 
            # Input: Select a file ----
            fileInput(inputId = "GEPfile", 
-                     label = "Choose Gene Expression File (.CSV/ .TXT file)",
+                     label = "Choose Gene Expression File (.csv), the first column
+                     must be the gene ID and the colnames being the sample ID, and RNA-seq data that hasn't been TPM",
                      multiple = FALSE,
                      accept = c("text/csv",
                                 "text/comma-separated-values,text/plain",
@@ -483,7 +492,7 @@ ui <- fluidPage(
                               choices = list("CMS", "CRIS")),
            # Horizontal line ----
            tags$hr(),
-           radioButtons("TPM", "TPM option", TPM_options),
+           #radioButtons("TPM", "TPM option", TPM_options),
            # Construct an action button for prediction
            actionButton(inputId = "Classprediction", 
                         label = "Button"),
@@ -493,7 +502,8 @@ ui <- fluidPage(
            
            #cohort data file
            fileInput(inputId = "cohort_file", 
-                     label = "Choose cohort file (.CSV/ .TXT file)",
+                     label = "Choose cohort file (.csv), the first column must contain the matching ID with the 
+                     first column of the RNA-seq .csv file",
                      multiple = FALSE,
                      accept = c("text/csv",
                                 "text/comma-separated-values,text/plain",
@@ -507,7 +517,9 @@ ui <- fluidPage(
     ),
     ########################################
     p("SECTION 1: Tumor Identity"),
-    
+    # Show a table of the parsed data
+    mainPanel(
+      tableOutput("summary_table"),
     ########################################
     p("SECTION 2: Subtype Classification"),
     tableOutput("CMS_Summary"),
@@ -518,42 +530,40 @@ ui <- fluidPage(
                     plotOutput(outputId = "CMSpie")), 
              column(width = 5, 
                     plotOutput(outputId = "CRISpie")),
-            fluidRow(
+             fluidRow(
                column(width = 10,
                       sankeyNetworkOutput(outputId = "CMSCRISsankey"),
                       
-    #cohort data visualization
-            tableOutput(outputId = "Content"),
-                      plotOutput(outputId = "loc_plot"),
-                      plotOutput(outputId = "surv_plot"),
-                      plotOutput(outputId = "loc_plot_CMS"),
-                      plotOutput(outputId = "surv_plot_CMS"),
+                      #cohort data visualization
+                      tableOutput(outputId = "Content"),
                       #plotOutput(outputId = "CMS_prob")
-    #CMS Summary Table
-    p("SECTION 3: Clinical Linke (Prognostic + Predictive Biomarker"),
-    selectInput(inputId = "networkCMS",
-                label = "CMS Network:",
-                choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
-                            "CMS1-Treatment" = "netCMS2_pred"),
-                selected = "netCMS1_pred"),
-    visNetworkOutput("networkCMS_output"),
-    #####################################
-    #button for dataframe choices
-    selectInput(inputId = "CMS_df",
-                label = "Subtypes:",
-                choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
-                  "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
-                  "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
-                  "CMS4 predictive biomarker+ Treatment" = "CMS4_pred",
-                  "CMS1 prognostic biomarker" = "CMS1_prog",
-                  "CMS2 prognostic biomarker" = "CMS2_prog",
-                  "CMS3 prognostic biomarker" = "CMS3_prog",
-                  "CMS4 prognostic biomarker" = "CMS4_prog")),
-    tableOutput("table_CMS"),
+                      
+                      #UMAP
+                      #plotOutput(outputId = "umap_TCGA"),
+                      plotOutput(outputId = "umap_TCGA"),
+                      plotOutput(outputId = "umap_si"),
+                      #################################################################
+                      #CMS Summary Table
+                      p("SECTION 3: Clinical Link (Prognostic + Predictive Biomarker)"),
+                      selectInput(inputId = "networkCMS",
+                                  label = "CMS Network:",
+                                  choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
+                                              "CMS1-Treatment" = "netCMS2_pred"),
+                                  selected = "netCMS1_pred"),
+                      visNetworkOutput("networkCMS_output"),
+                      #####################################
+                      #button for dataframe choices
+                      selectInput(inputId = "CMS_df",
+                                  label = "Subtypes:",
+                                  choices =  c("CMS predictive biomarker" = "CMS1_pred",
+                                               "CMS prognostic biomarker" = "CMS2_pred")),
+                      tableOutput("table_CMS"),
+                      tableOutput("json")
                )
              )
            )
     )
-  ))
+  )))
 
 shinyApp(ui = ui, server = server)
+

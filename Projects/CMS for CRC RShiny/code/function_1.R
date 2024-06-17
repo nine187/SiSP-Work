@@ -65,8 +65,6 @@ CMSprediction <- function(GEPdata, classifier){
   # Classify new data set by utilizing the trained DeepCC model
   print("fs")
   Freqspectra <- getFunctionalSpectra(GEPdata)
-  #prefix <- "~/R_Sisyspharm/Coding/Platform/DeepCC_CRC_TCGA-scale-estimate-456sam-600epoch-relu_model"
-  #classifier <- load_DeepCC_model(prefix)
   Predlabel <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5)
   Predlabel_prob <- get_DeepCC_label(classifier, Freqspectra, cutoff = 0.5, 
                                      prob_mode = T, prob_raw = T)
@@ -76,6 +74,12 @@ CMSprediction <- function(GEPdata, classifier){
   CMSpred <- as.data.frame(as.character(Predlabel), stringsAsFactors = FALSE)
   colnames(CMSpred) <- "CMS classification"
   CMSpred <- cbind(CMSpred, Predlabel_prob)
+  
+  #get Deepcc feature for umap
+  Predlabel_feature <- get_DeepCC_features(DeepCCModel = classifier, fs = Freqspectra )
+  
+  #combine both dataframe into a list
+  
   # Return the CMS prediction result
   return(CMSpred)
 }

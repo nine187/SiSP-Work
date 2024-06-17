@@ -29,9 +29,15 @@ library(survminer)
 #visNetwork 
 library(visNetwork)
 
+#SECTION1 table
+library(gtsummary)
+
+#for umap
+library(umap)
+
 source("code/function_1.R")
 
-# Modify the limitation of file size
+# Modify the limitation of size
 options(shiny.maxRequestSize = 1000*1024^2)
 
 server <- function(input, output, session) {
@@ -318,6 +324,41 @@ server <- function(input, output, session) {
       geom_col()
   })
   
+  #function to read the input file
+  clinical_data <- reactive({
+    req(input$cohort_file)
+    cohort_data <- read.csv(input$cohort_file$datapath)
+    return(cohort_data)
+  })
+  
+  #bind the dataframe of Subtype prediction to clinical data
+  #figure out how to make the input wait for the subtype output
+  clinical_data <- reactive({
+    req(input$cohort_file, Subtypeprediction())
+    df <- read.csv(input$cohort_file$datapath, header = TRUE) # Assuming clinical data is loaded from a file
+    df2 <- Subtypeprediction()
+    #bind only the elements we wanted from the dataframe
+    combined <- cbind(df, df2)
+    #use gt summary to compute a table
+    combined_table <- tbl_summary(
+      combined,
+      include = c(sex, age, metastasis, stage, location),
+      by = "CMS classification",
+      missing = "no",
+    ) %>%
+      add_n() %>%
+      add_p() %>%
+      modify_header(label = "**Variable**") %>%
+      bold_labels()
+    
+    return(combined_table)
+  })
+  
+  #function to render the clinical data 
+  output$summary_table <- renderTable({
+    clinical_data()
+  })
+  
   output$surv_plot_CMS <- renderPlot({
     req(input$cohort_file)
     cohort_data <- read.csv(input$cohort_file$datapath)
@@ -462,8 +503,8 @@ TPM_options <- c("TPM", "no TPM")
 # Construct UI
 ui <- fluidPage(
   shinyjs::useShinyjs(),
-  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.10", align = "center"),
-             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.10"),
+  titlePanel(h1("SiSP Colorectal Cancer Subtyping Platform V 0.12", align = "center"),
+             windowTitle = "SiSP Colorectal Cancer Subtyping Platform V 0.12"),
   # Divide columns of the UI page
   fluidPage(
     column(width = 12, 
@@ -507,53 +548,57 @@ ui <- fluidPage(
     ),
     ########################################
     p("SECTION 1: Tumor Identity"),
-    
-    ########################################
-    p("SECTION 2: Subtype Classification"),
-    tableOutput("CMS_Summary"),
-    tableOutput("CRIS_Summary"),
-    column(width = 10,
-           fluidRow(
-             column(width = 5, 
-                    plotOutput(outputId = "CMSpie")), 
-             column(width = 5, 
-                    plotOutput(outputId = "CRISpie")),
+    # Show a table of the parsed data
+    mainPanel(
+      tableOutput("summary_table"),
+      ########################################
+      p("SECTION 2: Subtype Classification"),
+      tableOutput("CMS_Summary"),
+      tableOutput("CRIS_Summary"),
+      column(width = 10,
              fluidRow(
-               column(width = 10,
-                      sankeyNetworkOutput(outputId = "CMSCRISsankey"),
-                      
-                      #cohort data visualization
-                      tableOutput(outputId = "Content"),
-                      plotOutput(outputId = "loc_plot"),
-                      plotOutput(outputId = "surv_plot"),
-                      plotOutput(outputId = "loc_plot_CMS"),
-                      plotOutput(outputId = "surv_plot_CMS"),
-                      #plotOutput(outputId = "CMS_prob")
-                      #CMS Summary Table
-                      p("SECTION 3: Clinical Linke (Prognostic + Predictive Biomarker"),
-                      selectInput(inputId = "networkCMS",
-                                  label = "CMS Network:",
-                                  choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
-                                              "CMS1-Treatment" = "netCMS2_pred"),
-                                  selected = "netCMS1_pred"),
-                      visNetworkOutput("networkCMS_output"),
-                      #####################################
-                      #button for dataframe choices
-                      selectInput(inputId = "CMS_df",
-                                  label = "Subtypes:",
-                                  choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
-                                               "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
-                                               "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
-                                               "CMS4 predictive biomarker+ Treatment" = "CMS4_pred",
-                                               "CMS1 prognostic biomarker" = "CMS1_prog",
-                                               "CMS2 prognostic biomarker" = "CMS2_prog",
-                                               "CMS3 prognostic biomarker" = "CMS3_prog",
-                                               "CMS4 prognostic biomarker" = "CMS4_prog")),
-                      tableOutput("table_CMS"),
+               column(width = 5, 
+                      plotOutput(outputId = "CMSpie")), 
+               column(width = 5, 
+                      plotOutput(outputId = "CRISpie")),
+               fluidRow(
+                 column(width = 10,
+                        sankeyNetworkOutput(outputId = "CMSCRISsankey"),
+                        
+                        #cohort data visualization
+                        tableOutput(outputId = "Content"),
+                        plotOutput(outputId = "loc_plot"),
+                        plotOutput(outputId = "surv_plot"),
+                        plotOutput(outputId = "loc_plot_CMS"),
+                        plotOutput(outputId = "surv_plot_CMS"),
+                        #plotOutput(outputId = "CMS_prob")
+                        #CMS Summary Table
+                        p("SECTION 3: Clinical Linke (Prognostic + Predictive Biomarker"),
+                        selectInput(inputId = "networkCMS",
+                                    label = "CMS Network:",
+                                    choices = c("CMS1-Predictive Biomarker" = "netCMS1_pred", 
+                                                "CMS1-Treatment" = "netCMS2_pred"),
+                                    selected = "netCMS1_pred"),
+                        visNetworkOutput("networkCMS_output"),
+                        #####################################
+                        #button for dataframe choices
+                        selectInput(inputId = "CMS_df",
+                                    label = "Subtypes:",
+                                    choices =  c("CMS1 predictive biomarker + Treatment" = "CMS1_pred",
+                                                 "CMS2 predictive biomarker + Treatment" = "CMS2_pred",
+                                                 "CMS3 predictive biomarker + Treatment" = "CMS3_pred",
+                                                 "CMS4 predictive biomarker + Treatment" = "CMS4_pred",
+                                                 "CMS1 prognostic biomarker" = "CMS1_prog",
+                                                 "CMS2 prognostic biomarker" = "CMS2_prog",
+                                                 "CMS3 prognostic biomarker" = "CMS3_prog",
+                                                 "CMS4 prognostic biomarker" = "CMS4_prog")),
+                        tableOutput("table_CMS"),
+                 )
                )
              )
-           )
-    )
-  ))
+      )
+    )))
 
 shinyApp(ui = ui, server = server)
+
+#test on Siriraj 100 RNA and clinical data samples

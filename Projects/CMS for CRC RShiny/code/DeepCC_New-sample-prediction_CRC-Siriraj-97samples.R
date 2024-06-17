@@ -37,7 +37,7 @@ si.dat <- si.dat[-which(si.dat$entrez_ID %in% dup.entrez), ] %>%
 # DO LOG2-TRANSFORMATION
 si.dat <- log2(si.dat + 1)
 
-#### PREPARE TESTING DATA: 3 SAMPLES ####
+ #### PREPARE TESTING DATA: 3 SAMPLES ####
 # DEFINE THE NEW SAMPLES FOR MAPPING IN THE UMAP PLANE
 test.samp <- c("TBi_RNA02", "TBi_RNA46", "TBi_RNA32")
 # 3 SAMPLES
@@ -74,6 +74,12 @@ si.ref_fs <- readRDS(file = "data/FS-CRC-SIRIRAJ_RSEM-TPM_97samples.rds")
 # LOAD FUNCTIONAL SPECTRA RESULTS OF SIRIRAJ COHORT
 si.test_fs <- readRDS(file = "data/FS-CRC-SIRIRAJ_RSEM-TPM_3samples.rds")
 
+#combine both dataframe for 100 patients
+si.all_fs <- rbind(si.ref_fs, si.test_fs)
+
+#save the dataframe 
+#write.csv(x = si.all_fs, file = "data/Si.CMSfeat_100.csv", row.names = F)
+
 #### CMS LABEL ####
 # CALL THE CRC-TCGA CLASSIFIER
 model.name <- "data/CRC_TCGA"
@@ -86,6 +92,23 @@ si.ref_na <- which(is.na(si.ref_lab$DeepCC))
 #### GET 10 DEEP FEATURES OF ALL SAMPLES IN THE TESTING DATA SET: CRC SIRIRAJ DATA SET ####
 # GET 10 FEATURES FROM THE DEEPCC CLASIFIER
 si.ref_df <- get_DeepCC_features(cms.model, si.ref_fs)
+
+#get deepfeature of all Si cohort
+si.feature_df <- get_DeepCC_features(cms.model, si.all_fs)
+si.label <- as.data.frame(get_DeepCC_label(cms.model, si.all_fs, cutoff = 0.5))
+
+#umap visualization code
+si_umap <- umap(d = si.feature_df,config = custom.config)
+si_umap <- si_umap$layout
+
+#combine the dataframe
+si.all_df <- cbind(si_umap, si.label)
+
+si.all_df <- which(is.na(si.all_df$`get_DeepCC_label(cms.model, si.all_fs, cutoff = 0.5)`))
+# GET CMS LABELS FOR ALL SAMPLES
+si.ref_lab_all <- get_DeepCC_label(cms.model, si.ref_fs, 
+                               cutoff = 0.5, prob_mode = TRUE)
+si.ref_na <- which(is.na(si.ref_lab$DeepCC))
 
 #### GET 10 DEEP FEATURES OF ALL SAMPLES IN THE REFERENCE DATA SET: 3 SAMPLES ####
 # GET 10 FEATURES FROM THE DEEPCC CLASIFIER
@@ -103,6 +126,10 @@ custom.config$n_neighbors <- 30
 si.ref_umap <- umap(d = si.ref_df, config = custom.config)
 # NEW SAMPLE PREDICTION
 si.test_pred <- data.frame(predict(si.ref_umap, si.test_df))
+
+#perform UMAP on the dataframe
+si.reference_umap <- umap(d = si.all_fs, config = custom.config)
+
 
 #### VISUALIZATION ####
 # PREPARE DATA FRAMES FOR VIZ: REFERENCE DATA, N = 97

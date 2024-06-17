@@ -56,9 +56,12 @@ CMSprediction <- function(GEPdata, classifier){
   
   # Log2-transformation of gene expression data before performing functional spectra
   # Transpose the gene expression data set before performing functional spectra
+  #TPM option
   GEPdata <- GEPdata*(10^6) #log2(TPM + 1)
   GEPdata <- GEPdata + 1
   GEPdata <- t(log2(GEPdata))
+  #no TPM option (already TPM transformed)
+  # GEPdata <- t(GEPdata)
   # Classify new data set by utilizing the trained DeepCC model
   print("fs")
   Freqspectra <- getFunctionalSpectra(GEPdata)
@@ -356,10 +359,10 @@ CRISprediction <- function(GEPdata, GEPsamples){
   CRISpred <- as.data.frame(predict.label2, stringsAsFactors = FALSE)
   
   #bind the dist.to.cls1 probabilty to the table
-  CRISpred[,2] <- dist.to.cls1
-
+  CRISpred[,2] <- dist.to.template
+  
   #assign the column name to the dataframe
-  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to cluster")
+  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to template")
   
   # Return the CRIS prediction result
   return(CRISpred)
