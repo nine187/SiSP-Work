@@ -10,6 +10,7 @@
 
 # Call org.Hs.eg.db library from Bioconductor package
 library(org.Hs.eg.db)
+
 # Call the libraries for DeepCC
 library(reticulate)
 use_condaenv("r-reticulate")
@@ -56,12 +57,15 @@ CMSprediction <- function(GEPdata, classifier){
   
   # Log2-transformation of gene expression data before performing functional spectra
   # Transpose the gene expression data set before performing functional spectra
-  #TPM option
+  
+  #TPM option, add option to bypass this process later DONT FORGET TO UNCOMMENT
   GEPdata <- GEPdata*(10^6) #log2(TPM + 1)
   GEPdata <- GEPdata + 1
   GEPdata <- t(log2(GEPdata))
+  
   #no TPM option (already TPM transformed)
-  # GEPdata <- t(GEPdata)
+  #GEPdata <- t(GEPdata)
+  
   # Classify new data set by utilizing the trained DeepCC model
   print("fs")
   Freqspectra <- getFunctionalSpectra(GEPdata)
@@ -86,6 +90,9 @@ CMSprediction <- function(GEPdata, classifier){
 
 ## CRIS CLASSIFICATION ##
 CRISprediction <- function(GEPdata, GEPsamples){
+  browser(
+    
+  )
   # suppressWarnings()
   temp.nn.wt <- "TRUE"
   dist.selection <- "cosine"
@@ -364,9 +371,10 @@ CRISprediction <- function(GEPdata, GEPsamples){
   
   #bind the dist.to.cls1 probabilty to the table
   CRISpred[,2] <- dist.to.template
+  CRISpred[,3] <- dist.to.cls1.rank
   
   #assign the column name to the dataframe
-  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to template")
+  colnames(CRISpred) <- c("CRIS classification", "CRIS: distance to template", "CRIS: distance to cluster rank")
   
   # Return the CRIS prediction result
   return(CRISpred)

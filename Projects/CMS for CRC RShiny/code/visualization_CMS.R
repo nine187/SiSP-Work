@@ -68,7 +68,7 @@ Si_result_classifieR <- read.csv(file="SiSP Work/Projects/CMS for CRC RShiny/dat
 
 Si_all <- cbind(Si_result_classifieR, Si_result_RShiny)
 Si_all <- Si_all[,c(1,6,7,9)]
-# Replace NA with "UNC" in each row of the Si_all dataframe
+# Replace NA with "UNC" in each row of the Si_all data frame
 Si_all[is.na(Si_all)] <- "UNC"
 
 accuracy_cutoff <- table(Si_all$CMS.classification == Si_all$RF.predictedCMS)
