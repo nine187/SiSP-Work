@@ -1,3 +1,7 @@
+#### CMS result visualization #### 
+# AUTHOR: PASITH PRAYOONRAT
+# CONTACT: PASITH.P@GMAIL.COM
+
 library(ggplot2)
 #read the classifieR CMS data output for Siriraj patient
 library(ggplot2)
@@ -6,7 +10,7 @@ library(dplyr)
 #sankey diagram
 library(networkD3)
 
-# Assuming you've already read the CSV and created `Si_classifier` dataframe
+#assuming you've already read the CSV and created `Si_classifier` dataframe
 table_classifier <- as.data.frame(table(Si_classifier$RF.predictedCMS))
 table_classifier_closest <- as.data.frame(table(Si_classifier$RF.nearestCMS))
 
