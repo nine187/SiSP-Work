@@ -11,6 +11,6 @@ This repository contains all the files related to the SiSP lab, including projec
 - **Tutorial Files**: Guides and documentation to help users understand and utilize the project effectively.
 
 ```bash
-git clone https://github.com/yourusername/repository.git
+https://github.com/nine187/SiSP-Work/
 cd repository
 # Include additional setup commands
