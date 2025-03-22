@@ -1,3 +1,7 @@
+#### CRC BATCH CORRECTION CODE #### 
+# AUTHOR: PASITH PRAYOONRAT
+# CONTACT: PASITH.P@GMAIL.COM
+
 rm(list=ls())
 graphics.off()
 
