@@ -1,3 +1,8 @@
+#### CMS clinical data table #### 
+# AUTHOR: PASITH PRAYOONRAT
+# CONTACT: PASITH.P@GMAIL.COM
+
+
 library(gtsummary)
 
 Si_cohort_clinical <- read.csv(file="data/110si_crc.csv")
