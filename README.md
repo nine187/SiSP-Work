@@ -10,9 +10,6 @@ This repository contains all the files related to the SiSP lab, including projec
 - **Project Files**: Details of the specific project developed in the SiSP lab.
 - **Tutorial Files**: Guides and documentation to help users understand and utilize the project effectively.
 
-## Installation
-Provide instructions on how to set up the project locally, such as cloning the repo, dependency installation, and any configuration needed.
-
 ```bash
 git clone https://github.com/yourusername/repository.git
 cd repository
