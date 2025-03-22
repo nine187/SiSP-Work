@@ -1,0 +1,22 @@
+Version
+
+0.20  - added knowledge-based database (10 papers mock up)
+0.19  - added download data button
+0.17  - reworked knowledge based database dataframe
+0.16  - added .tsv file reading for knowledge-based database
+0.15  - removed TPM button, added explaination text for clinical data / RNA-seq match
+0.14  - added TCGA dataframe as UMAP 
+0.13  - Added TCGA and Siriraj as UMAP 
+0.12  - Added gtsummary and code to combine subtype results to the clinical data
+0.11  - modify clinical data input to print out table
+0.10  - add CRIS and CMS Summary Table in Section 2
+0.09  - rearrange RShiny UI according to layout
+0.08  - added visNetwork CMS1 relationship
+0.07  - added CMS predictive and prognostic subtypes category choices 
+0.06  - added comparison to CMS knowledge-based dataframe
+0.05  - added dataframe selection for prognostic biomarkers of CMS for non-comparison between CMSs
+0.04  - added dataframe selection for predictive biomarkers of CMS for non-comparison between CMSs
+0.03  - added a table for CMS1 dataframe
+0.021 - removed visualization button, add TPM option
+0.02  - add CRIS classifier distance to cluster probabilty table
+0.01  - first version with CRIS + CMS classifier and test file clinical data visualization
